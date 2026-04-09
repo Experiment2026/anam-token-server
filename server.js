@@ -20,7 +20,7 @@ app.get("/", (req, res) => {
 
 app.post("/api/session-token", async (req, res) => {
   try {
-    const response = await fetch("https://api.anam.ai/v1/auth/session-token", {
+    const response = await fetch("https://anam-token-server-1.onrender.com", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
