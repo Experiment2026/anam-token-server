@@ -25,6 +25,7 @@
   import { createClient, AnamEvent } from "https://esm.sh/@anam-ai/js-sdk";
 
   let client = null;
+  let assistantBuffer = "";
 
   const statusEl = document.getElementById("status");
   const chatbox = document.getElementById("chatbox");
@@ -36,26 +37,10 @@
     statusEl.textContent = text;
   }
 
-  function renderChatHistory(messages) {
-    chatbox.innerHTML = "";
-
-    for (const msg of messages) {
-      const roleLabel =
-        msg.role === "user" ? "You" :
-        msg.role === "assistant" || msg.role === "persona" ? "Assistant" :
-        msg.role;
-
-      const p = document.createElement("p");
-      p.innerHTML = `<b>${roleLabel}:</b> ${msg.content}`;
-      chatbox.appendChild(p);
-    }
-
-    chatbox.scrollTop = chatbox.scrollHeight;
-  }
-
-  function addUserMessage(text) {
+  function addToChat(role, text, id = null) {
     const p = document.createElement("p");
-    p.innerHTML = `<b>You:</b> ${text}`;
+    if (id) p.id = id;
+    p.innerHTML = `<b>${role}:</b> ${text}`;
     chatbox.appendChild(p);
     chatbox.scrollTop = chatbox.scrollHeight;
   }
@@ -76,13 +61,31 @@
 
       client = createClient(data.sessionToken);
 
-      client.addListener(AnamEvent.MESSAGE_HISTORY_UPDATED, (messages) => {
-        console.log("History updated:", messages);
-        renderChatHistory(messages);
-      });
-
       client.addListener(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
-        console.log("Stream event:", event);
+        console.log("Event:", event);
+
+        if (event.role === "persona") {
+          const assistantMsgId = "assistant-msg";
+
+          // Add each chunk to the running response
+          assistantBuffer += event.content || "";
+
+          let existing = document.getElementById(assistantMsgId);
+
+          if (!existing) {
+            addToChat("Assistant", assistantBuffer, assistantMsgId);
+            existing = document.getElementById(assistantMsgId);
+          } else {
+            existing.innerHTML = `<b>Assistant:</b> ${assistantBuffer}`;
+          }
+
+          chatbox.scrollTop = chatbox.scrollHeight;
+
+          // Reset buffer once the response is complete
+          if (event.endOfSpeech) {
+            assistantBuffer = "";
+          }
+        }
       });
 
       setStatus("Connecting...");
@@ -104,8 +107,14 @@
       const text = inputEl.value.trim();
       if (!text) return;
 
-      addUserMessage(text);
+      addToChat("You", text);
       inputEl.value = "";
+
+      // Remove old assistant placeholder for the new turn
+      const existing = document.getElementById("assistant-msg");
+      if (existing) existing.remove();
+
+      assistantBuffer = "";
 
       await client.sendUserMessage(text);
     } catch (error) {
