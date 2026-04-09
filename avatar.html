@@ -8,13 +8,11 @@
 <body>
   <h2>Chat Assistant</h2>
 
-  <!-- Hidden avatar -->
   <video id="avatar" autoplay playsinline
     style="position:absolute; left:-9999px; width:1px; height:1px;">
   </video>
 
   <div id="status">Not connected</div>
-
   <div id="chatbox" style="height:300px; overflow-y:auto; border:1px solid #ccc; padding:10px;"></div>
 
   <input id="input" placeholder="Type here..." />
@@ -22,106 +20,119 @@
   <button id="sendBtn">Send</button>
 
   <script type="module">
-  import { createClient, AnamEvent } from "https://esm.sh/@anam-ai/js-sdk";
+    import { createClient, AnamEvent } from "https://esm.sh/@anam-ai/js-sdk";
 
-  let client = null;
-  let assistantBuffer = "";
+    let client = null;
+    let assistantBuffer = "";
+    let assistantRow = null;
+    let assistantText = null;
 
-  const statusEl = document.getElementById("status");
-  const chatbox = document.getElementById("chatbox");
-  const inputEl = document.getElementById("input");
-  const startBtn = document.getElementById("startBtn");
-  const sendBtn = document.getElementById("sendBtn");
+    const statusEl = document.getElementById("status");
+    const chatbox = document.getElementById("chatbox");
+    const inputEl = document.getElementById("input");
+    const startBtn = document.getElementById("startBtn");
+    const sendBtn = document.getElementById("sendBtn");
 
-  function setStatus(text) {
-    statusEl.textContent = text;
-  }
-
-  function addToChat(role, text, id = null) {
-    const p = document.createElement("p");
-    if (id) p.id = id;
-    p.innerHTML = `<b>${role}:</b> ${text}`;
-    chatbox.appendChild(p);
-    chatbox.scrollTop = chatbox.scrollHeight;
-  }
-
-  startBtn.addEventListener("click", async () => {
-    try {
-      setStatus("Creating session...");
-
-      const response = await fetch("https://anam-token-server-1.onrender.com/api/session-token", {
-        method: "POST"
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to get session token");
-      }
-
-      client = createClient(data.sessionToken);
-
-      client.addListener(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
-        console.log("Event:", event);
-
-        if (event.role === "persona") {
-          const assistantMsgId = "assistant-msg";
-
-          // Add each chunk to the running response
-          assistantBuffer += event.content || "";
-
-          let existing = document.getElementById(assistantMsgId);
-
-          if (!existing) {
-            addToChat("Assistant", assistantBuffer, assistantMsgId);
-            existing = document.getElementById(assistantMsgId);
-          } else {
-            existing.innerHTML = `<b>Assistant:</b> ${assistantBuffer}`;
-          }
-
-          chatbox.scrollTop = chatbox.scrollHeight;
-
-          // Reset buffer once the response is complete
-          if (event.endOfSpeech) {
-            assistantBuffer = "";
-          }
-        }
-      });
-
-      setStatus("Connecting...");
-      await client.streamToVideoElement("avatar");
-      setStatus("Connected");
-    } catch (error) {
-      console.error(error);
-      setStatus("Error: " + error.message);
+    function setStatus(text) {
+      statusEl.textContent = text;
     }
-  });
 
-  sendBtn.addEventListener("click", async () => {
-    try {
-      if (!client) {
-        setStatus("Start the session first");
-        return;
+    function appendUserMessage(text) {
+      const p = document.createElement("p");
+      p.innerHTML = `<b>You:</b> ${text}`;
+      chatbox.appendChild(p);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function beginAssistantMessage() {
+      assistantRow = document.createElement("p");
+
+      const label = document.createElement("b");
+      label.textContent = "Assistant: ";
+
+      assistantText = document.createElement("span");
+      assistantText.textContent = "";
+
+      assistantRow.appendChild(label);
+      assistantRow.appendChild(assistantText);
+      chatbox.appendChild(assistantRow);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
+
+    function updateAssistantMessage(chunk) {
+      if (!assistantRow || !assistantText) {
+        beginAssistantMessage();
       }
 
-      const text = inputEl.value.trim();
-      if (!text) return;
+      assistantBuffer += chunk || "";
+      assistantText.textContent = assistantBuffer;
+      chatbox.scrollTop = chatbox.scrollHeight;
+    }
 
-      addToChat("You", text);
-      inputEl.value = "";
-
-      // Remove old assistant placeholder for the new turn
-      const existing = document.getElementById("assistant-msg");
-      if (existing) existing.remove();
-
+    function resetAssistantMessage() {
       assistantBuffer = "";
-
-      await client.sendUserMessage(text);
-    } catch (error) {
-      console.error(error);
-      setStatus("Send error: " + error.message);
+      assistantRow = null;
+      assistantText = null;
     }
-  });
-</script>
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        setStatus("Creating session...");
+
+        const response = await fetch("https://anam-token-server-1.onrender.com/api/session-token", {
+          method: "POST"
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to get session token");
+        }
+
+        client = createClient(data.sessionToken);
+
+        client.addListener(AnamEvent.MESSAGE_STREAM_EVENT_RECEIVED, (event) => {
+          console.log("Event object:", JSON.stringify(event));
+
+          if (event.role === "persona") {
+            updateAssistantMessage(event.content);
+
+            if (event.endOfSpeech) {
+              resetAssistantMessage();
+            }
+          }
+        });
+
+        setStatus("Connecting...");
+        await client.streamToVideoElement("avatar");
+        setStatus("Connected");
+      } catch (error) {
+        console.error(error);
+        setStatus("Error: " + error.message);
+      }
+    });
+
+    sendBtn.addEventListener("click", async () => {
+      try {
+        if (!client) {
+          setStatus("Start the session first");
+          return;
+        }
+
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        appendUserMessage(text);
+        inputEl.value = "";
+
+        resetAssistantMessage();
+
+        await client.sendUserMessage(text);
+      } catch (error) {
+        console.error(error);
+        setStatus("Send error: " + error.message);
+      }
+    });
+  </script>
 </body>
 </html>
