@@ -5,14 +5,11 @@ const app = express();
 
 app.use(express.json());
 
-// Replace this with your GitHub Pages URL later
-const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+const allowedOrigin = process.env.ALLOWED_ORIGIN || "https://experiment2026.github.io";
 
-app.use(
-  cors({
-    origin: allowedOrigin,
-  })
-);
+app.use(cors({
+  origin: allowedOrigin
+}));
 
 app.get("/", (req, res) => {
   res.send("Anam token server is running.");
@@ -20,11 +17,11 @@ app.get("/", (req, res) => {
 
 app.post("/api/session-token", async (req, res) => {
   try {
-    const response = await fetch("https://anam-token-server-1.onrender.com", {
+    const response = await fetch("https://api.anam.ai/v1/auth/session-token", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.ANAM_API_KEY}`,
+        "Authorization": `Bearer ${process.env.ANAM_API_KEY}`,
       },
       body: JSON.stringify({
         personaConfig: {
@@ -43,9 +40,7 @@ app.post("/api/session-token", async (req, res) => {
       return res.status(response.status).json(data);
     }
 
-    res.json({
-      sessionToken: data.sessionToken
-    });
+    res.json({ sessionToken: data.sessionToken });
   } catch (error) {
     console.error("Session token error:", error);
     res.status(500).json({ error: "Failed to create session token." });
@@ -53,6 +48,6 @@ app.post("/api/session-token", async (req, res) => {
 });
 
 const port = process.env.PORT || 10000;
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`Server listening on port ${port}`);
 });
