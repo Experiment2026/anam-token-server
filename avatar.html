@@ -22,7 +22,7 @@ import { createClient } from "https://esm.sh/@anam-ai/js-sdk";
 let client;
 
 // 🔑 Step 1: get session token from Render
-const response = await fetch("https://your-render-url.onrender.com/api/session-token", {
+const response = await fetch("https://anam-token-server-1.onrender.com", {
   method: "POST"
 });
 const { sessionToken } = await response.json();
