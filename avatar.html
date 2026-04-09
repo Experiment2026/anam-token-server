@@ -8,11 +8,13 @@
 <body>
   <h2>Chat Assistant</h2>
 
+  <!-- Hidden avatar -->
   <video id="avatar" autoplay playsinline
-  style="position:absolute; left:-9999px; width:1px; height:1px;">
-</video>
+    style="position:absolute; left:-9999px; width:1px; height:1px;">
+  </video>
 
   <div id="status">Not connected</div>
+
   <div id="chatbox" style="height:300px; overflow-y:auto; border:1px solid #ccc; padding:10px;"></div>
 
   <input id="input" placeholder="Type here..." />
@@ -23,6 +25,7 @@
     import { createClient } from "https://esm.sh/@anam-ai/js-sdk";
 
     let client = null;
+    let currentResponse = "";
 
     const statusEl = document.getElementById("status");
     const chatbox = document.getElementById("chatbox");
@@ -58,6 +61,29 @@
         setStatus("Connecting...");
         await client.streamToVideoElement("avatar");
         setStatus("Connected");
+
+        // 👇 LISTEN FOR AGENT RESPONSES
+        client.addListener("MESSAGE_STREAM_EVENT_RECEIVED", (event) => {
+          console.log("Event:", event);
+
+          if (event.role === "PERSONA") {
+            currentResponse = event.content;
+
+            let existing = document.getElementById("assistant-msg");
+
+            if (existing) {
+              existing.innerHTML = `<b>Assistant:</b> ${currentResponse}`;
+            } else {
+              const p = document.createElement("p");
+              p.id = "assistant-msg";
+              p.innerHTML = `<b>Assistant:</b> ${currentResponse}`;
+              chatbox.appendChild(p);
+            }
+
+            chatbox.scrollTop = chatbox.scrollHeight;
+          }
+        });
+
       } catch (error) {
         console.error(error);
         setStatus("Error: " + error.message);
@@ -77,7 +103,13 @@
         addToChat("You", text);
         inputEl.value = "";
 
+        // 👇 RESET PREVIOUS RESPONSE
+        currentResponse = "";
+        const existing = document.getElementById("assistant-msg");
+        if (existing) existing.remove();
+
         await client.sendUserMessage(text);
+
       } catch (error) {
         console.error(error);
         setStatus("Send error: " + error.message);
